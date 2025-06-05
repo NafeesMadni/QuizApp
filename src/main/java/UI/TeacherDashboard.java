@@ -1,10 +1,18 @@
 package UI;
 
+import java.awt.BorderLayout;
+import java.util.List;
+
+import javax.swing.DefaultListModel;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+
 import DBLayer.QuizDAO;
 import Models.Quiz;
-import javax.swing.*;
-import java.awt.*;
-import java.util.List;
 
 public class TeacherDashboard extends JFrame {
     private JList<Quiz> quizList;
@@ -25,10 +33,12 @@ public class TeacherDashboard extends JFrame {
         JButton addButton = new JButton("Add Quiz");
         JButton deleteButton = new JButton("Delete Quiz");
         JButton refreshButton = new JButton("Refresh");
+        JButton updateButton = new JButton("Update Quiz");
         
         buttonPanel.add(addButton);
         buttonPanel.add(deleteButton);
         buttonPanel.add(refreshButton);
+        buttonPanel.add(updateButton);
         
         // Setup quiz list
         listModel = new DefaultListModel<>();
@@ -44,6 +54,7 @@ public class TeacherDashboard extends JFrame {
         addButton.addActionListener(e -> showAddQuizDialog());
         deleteButton.addActionListener(e -> deleteSelectedQuiz());
         refreshButton.addActionListener(e -> refreshQuizList());
+        updateButton.addActionListener(e -> updateSelectedQuiz());
         
         refreshQuizList();
         setLocationRelativeTo(null);
@@ -58,16 +69,18 @@ public class TeacherDashboard extends JFrame {
     }
     
     private void showAddQuizDialog() {
-        // Implementation for adding a new quiz
-        // Create a new dialog with form fields for quiz details
+        AddQuizDialog dialog = new AddQuizDialog(this, userId);
+        dialog.setVisible(true);
+        refreshQuizList(); // Refresh the list after adding a new quiz
     }
     
     private void deleteSelectedQuiz() {
         Quiz selectedQuiz = quizList.getSelectedValue();
         if (selectedQuiz != null) {
+            System.out.println("Selected quiz ID: " + selectedQuiz.getId()); // Debug log
             int confirm = JOptionPane.showConfirmDialog(
                 this,
-                "Are you sure you want to delete this quiz?",
+                "Are you sure you want to delete quiz: " + selectedQuiz.getTitle() + " (ID: " + selectedQuiz.getId() + ")?",
                 "Confirm Deletion",
                 JOptionPane.YES_NO_OPTION
             );
@@ -77,9 +90,34 @@ public class TeacherDashboard extends JFrame {
                     refreshQuizList();
                     JOptionPane.showMessageDialog(this, "Quiz deleted successfully!");
                 } else {
-                    JOptionPane.showMessageDialog(this, "Failed to delete quiz!");
+                    JOptionPane.showMessageDialog(this, 
+                        "Failed to delete quiz. Please check console for error details.", 
+                        "Error", 
+                        JOptionPane.ERROR_MESSAGE);
                 }
             }
+        } else {
+            JOptionPane.showMessageDialog(this, 
+                "Please select a quiz to delete.", 
+                "Warning", 
+                JOptionPane.WARNING_MESSAGE);
+        }
+    }
+    
+    private void updateSelectedQuiz() {
+        Quiz selectedQuiz = quizList.getSelectedValue();
+        if (selectedQuiz != null) {
+            Quiz fullQuiz = quizDAO.getQuizWithQuestions(selectedQuiz.getId());
+            if (fullQuiz != null) {
+                UpdateQuizDialog dialog = new UpdateQuizDialog(this, fullQuiz, userId);
+                dialog.setVisible(true);
+                refreshQuizList();
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, 
+                "Please select a quiz to update.", 
+                "Warning", 
+                JOptionPane.WARNING_MESSAGE);
         }
     }
 }

@@ -67,31 +67,162 @@ public class QuizDAO {
                     rs.getString("description"),
                     rs.getInt("created_by")
                 );
-                quiz.setId(rs.getInt("id"));
+                quiz.setId(rs.getInt("id")); // Make sure ID is set
                 quizzes.add(quiz);
             }
         } catch (SQLException e) {
+            System.err.println("Error fetching quizzes: " + e.getMessage());
             e.printStackTrace();
         }
         return quizzes;
     }
     
     public boolean deleteQuiz(int quizId) {
-        try (Connection conn = conObj.getConnection()) {
-            // First delete associated questions
-            String deleteQuestions = "DELETE FROM questions WHERE quiz_id = ?";
-            PreparedStatement stmt1 = conn.prepareStatement(deleteQuestions);
+        Connection conn = null;
+        try {
+            conn = conObj.getConnection();
+            conn.setAutoCommit(false);
+            
+            // First delete results associated with the quiz
+            String deleteResults = "DELETE FROM results WHERE quiz_id = ?";
+            PreparedStatement stmt1 = conn.prepareStatement(deleteResults);
             stmt1.setInt(1, quizId);
             stmt1.executeUpdate();
-            
-            // Then delete the quiz
-            String deleteQuiz = "DELETE FROM quizzes WHERE id = ?";
-            PreparedStatement stmt2 = conn.prepareStatement(deleteQuiz);
+
+            // Delete questions
+            String deleteQuestions = "DELETE FROM questions WHERE quiz_id = ?";
+            PreparedStatement stmt2 = conn.prepareStatement(deleteQuestions);
             stmt2.setInt(1, quizId);
-            return stmt2.executeUpdate() > 0;
+            stmt2.executeUpdate();
+
+            // Delete the quiz
+            String deleteQuiz = "DELETE FROM quizzes WHERE id = ?";
+            PreparedStatement stmt3 = conn.prepareStatement(deleteQuiz);
+            stmt3.setInt(1, quizId);
+            int rowsAffected = stmt3.executeUpdate();
+            
+            conn.commit();
+            return rowsAffected > 0;
         } catch (SQLException e) {
+            try {
+                if (conn != null) conn.rollback();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+            System.err.println("Error deleting quiz: " + e.getMessage());
             e.printStackTrace();
             return false;
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
+    }
+    
+    public boolean updateQuiz(Quiz quiz) {
+        Connection conn = null;
+        try {
+            conn = conObj.getConnection();
+            conn.setAutoCommit(false);
+            
+            // Update quiz details
+            String updateQuiz = "UPDATE quizzes SET title=?, description=? WHERE id=?";
+            PreparedStatement stmt = conn.prepareStatement(updateQuiz);
+            stmt.setString(1, quiz.getTitle());
+            stmt.setString(2, quiz.getDescription());
+            stmt.setInt(3, quiz.getId());
+            int rowsAffected = stmt.executeUpdate();
+            
+            // Delete existing questions
+            String deleteQuestions = "DELETE FROM questions WHERE quiz_id=?";
+            PreparedStatement deleteStmt = conn.prepareStatement(deleteQuestions);
+            deleteStmt.setInt(1, quiz.getId());
+            deleteStmt.executeUpdate();
+            
+            // Insert new questions
+            for (Question question : quiz.getQuestions()) {
+                String insertQuestion = "INSERT INTO questions (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                PreparedStatement questionStmt = conn.prepareStatement(insertQuestion);
+                questionStmt.setInt(1, quiz.getId());
+                questionStmt.setString(2, question.getQuestionText());
+                questionStmt.setString(3, question.getOptionA());
+                questionStmt.setString(4, question.getOptionB());
+                questionStmt.setString(5, question.getOptionC());
+                questionStmt.setString(6, question.getOptionD());
+                questionStmt.setString(7, String.valueOf(question.getCorrectOption()));
+                questionStmt.executeUpdate();
+            }
+            
+            conn.commit();
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            try {
+                if (conn != null) conn.rollback();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+            System.err.println("Error updating quiz: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    public Quiz getQuizWithQuestions(int quizId) {
+        Quiz quiz = null;
+        Connection conn = null;
+        try {
+            conn = conObj.getConnection();
+            
+            // Get quiz details
+            String quizSql = "SELECT * FROM quizzes WHERE id=?";
+            PreparedStatement quizStmt = conn.prepareStatement(quizSql);
+            quizStmt.setInt(1, quizId);
+            ResultSet quizRs = quizStmt.executeQuery();
+            
+            if (quizRs.next()) {
+                quiz = new Quiz(
+                    quizRs.getString("title"),
+                    quizRs.getString("description"),
+                    quizRs.getInt("created_by")
+                );
+                quiz.setId(quizId);
+                
+                // Get questions
+                String questionSql = "SELECT * FROM questions WHERE quiz_id=?";
+                PreparedStatement questionStmt = conn.prepareStatement(questionSql);
+                questionStmt.setInt(1, quizId);
+                ResultSet questionRs = questionStmt.executeQuery();
+                
+                while (questionRs.next()) {
+                    Question question = new Question(
+                        questionRs.getString("question_text"),
+                        questionRs.getString("option_a"),
+                        questionRs.getString("option_b"),
+                        questionRs.getString("option_c"),
+                        questionRs.getString("option_d"),
+                        questionRs.getString("correct_option").charAt(0)
+                    );
+                    question.setId(questionRs.getInt("id"));
+                    quiz.getQuestions().add(question);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        return quiz;
     }
 }

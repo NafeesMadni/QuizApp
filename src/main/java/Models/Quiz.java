@@ -25,4 +25,9 @@ public class Quiz {
     public int getCreatedBy() { return createdBy; }
     public List<Question> getQuestions() { return questions; }
     public void setQuestions(List<Question> questions) { this.questions = questions; }
+
+    @Override
+    public String toString() {
+        return "Quiz: " + title;
+    }
 }
